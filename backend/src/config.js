@@ -89,7 +89,7 @@ export function loadConfig(env = process.env, overrides = {}) {
       url: GEMINI_URL,
       maxAttempts: 3,
       retryDelayMs: 1200,
-      timeoutMs: 20000,
+      timeoutMs: Number(env.GEMINI_TIMEOUT_MS) > 0 ? Number(env.GEMINI_TIMEOUT_MS) : 20000,
     },
     cloudflare: {
       apiToken: env.CLOUDFLARE_API_TOKEN || '',

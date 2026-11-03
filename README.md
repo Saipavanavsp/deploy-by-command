@@ -152,6 +152,7 @@ For frontend development with hot reload, run `npm run dev` in `frontend/` (http
 | `SSH_CIDR` | auto (your IP `/32`) | Source range for SSH. `0.0.0.0/0` is rejected |
 | `GEMINI_API_KEY` | — | Enables Gemini. Never sent to the browser |
 | `GEMINI_MODEL` | `gemini-flash-latest` | Model alias |
+| `GEMINI_TIMEOUT_MS` | `20000` | Time limit per Gemini request; on timeout the rules engine decides |
 | `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` | — | Cloudflare Pages route |
 | `CF_PROJECT_NAME` | `deploy-by-command` | Pages project name |
 | `PORT` / `HOST` | `4000` / `127.0.0.1` | Bind address (keep loopback) |
