@@ -25,6 +25,8 @@ export function createApp({ config, provider, logger, fetch: fetchImpl = globalT
 
   const app = express();
   app.disable('x-powered-by');
+  // Behind the tunnel / hosting proxy: use the client IP for the rate limit, not the proxy's.
+  if (cfg.colabTunnel) app.set('trust proxy', 1);
   applyMiddleware(app, cfg);
   const router = createRouter({ cfg, workflow, logger: log, fetch: fetchImpl, sleep });
   app.use('/api', router);

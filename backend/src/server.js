@@ -34,7 +34,8 @@ if (cfg.mode === 'mock') {
 }
 console.log(`  Engine: ${cfg.gemini.apiKey ? `Gemini (${cfg.gemini.model}) with rule fallback` : 'rules only (GEMINI_API_KEY not set)'}`);
 if (!isLoopback(cfg.host)) console.log(`  WARNING: HOST=${cfg.host} is not loopback. The dashboard has no login; do not expose it.`);
-if (cfg.colabTunnel) console.log('  COLAB_TUNNEL=1: access token required on every request; MODE forced to mock.');
+if (cfg.publicDemo) console.log('  PUBLIC_DEMO=1: public simulated demo — access token required on every request; MODE forced to mock.');
+else if (cfg.colabTunnel) console.log('  COLAB_TUNNEL=1: access token required on every request; MODE forced to mock.');
 console.log(line);
 
 const app = createApp({ config: cfg });

@@ -118,7 +118,9 @@ export function loadConfig(env = process.env, overrides = {}) {
       publicCheckAttempts: 15,
       publicCheckDelayMs: 4000,
     },
-    colabTunnel: env.COLAB_TUNNEL === '1',
+    // Token-protected exposure: the Colab tunnel, or a hosted public demo (e.g. Render).
+    colabTunnel: env.COLAB_TUNNEL === '1' || env.PUBLIC_DEMO === '1',
+    publicDemo: env.PUBLIC_DEMO === '1',
     accessToken: env.ACCESS_TOKEN || '',
     rateLimitPerMinute: 240,
     bodyLimit: '10kb',
@@ -127,11 +129,19 @@ export function loadConfig(env = process.env, overrides = {}) {
   const cfg = merge(base, overrides);
   if (cfg.colabTunnel) {
     if (cfg.mode !== 'mock') {
-      throw new AppError('COLAB_TUNNEL_REQUIRES_MOCK', 'COLAB_TUNNEL=1 is only allowed with MODE=mock, because the dashboard has no login.', 409);
+      throw new AppError('COLAB_TUNNEL_REQUIRES_MOCK', 'COLAB_TUNNEL=1 / PUBLIC_DEMO=1 is only allowed with MODE=mock, because the dashboard has no login.', 409);
     }
     if (!cfg.accessToken || cfg.accessToken.length < 16) {
-      throw new AppError('ACCESS_TOKEN_REQUIRED', 'COLAB_TUNNEL=1 needs ACCESS_TOKEN (at least 16 random characters).', 400);
+      throw new AppError('ACCESS_TOKEN_REQUIRED', 'COLAB_TUNNEL=1 / PUBLIC_DEMO=1 needs ACCESS_TOKEN (at least 16 random characters).', 400);
     }
+  }
+  // Binding beyond loopback exposes a dashboard without login: only allowed as a token-protected simulated demo.
+  if (!isLoopback(cfg.host) && !cfg.colabTunnel) {
+    throw new AppError(
+      'PUBLIC_BIND_REFUSED',
+      `HOST=${cfg.host} would expose the dashboard, which has no login. Use HOST=127.0.0.1, or PUBLIC_DEMO=1 (simulated mode + ACCESS_TOKEN).`,
+      409,
+    );
   }
   return cfg;
 }

@@ -36,12 +36,14 @@ export function isAllowedOrigin(origin, req, cfg) {
 function accessTokenGuard(cfg) {
   return (req, res, next) => {
     if (!cfg.colabTunnel) return next();
+    // Health stays open for hosting health checks; it reveals only mode/engine.
+    if (req.method === 'GET' && (req.path === '/health' || req.path === '/api/health')) return next();
     const fromQuery = typeof req.query?.token === 'string' ? req.query.token : '';
     const provided = req.get('x-access-token') || fromQuery || parseCookies(req.headers.cookie).dbc_token || '';
     if (!provided || !safeEqual(provided, cfg.accessToken)) {
       return res.status(401).json({ error: { code: 'ACCESS_TOKEN_REQUIRED', message: 'This dashboard is protected by an access token. Open the link printed in the notebook.' } });
     }
-    if (fromQuery) res.cookie('dbc_token', provided, { httpOnly: true, sameSite: 'strict', path: '/' });
+    if (fromQuery) res.cookie('dbc_token', provided, { httpOnly: true, sameSite: 'strict', secure: req.secure, path: '/' });
     req.tokenOk = true;
     return next();
   };
