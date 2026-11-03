@@ -1,0 +1,35 @@
+{
+  "name": "deploy-by-command-backend",
+  "version": "1.0.0",
+  "description": "Deploy by Command backend: safe LLM-driven AWS EC2 + Docker deployment from text commands",
+  "type": "module",
+  "private": true,
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node scripts/test.js",
+    "eval": "node scripts/eval-classifier.js",
+    "observe": "node scripts/observe-gemini.js",
+    "bench": "node scripts/benchmark.js",
+    "preflight": "node scripts/preflight.js",
+    "loc": "node scripts/loc.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-ec2": "^3.700.0",
+    "@aws-sdk/client-ssm": "^3.700.0",
+    "@aws-sdk/client-sts": "^3.700.0",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "ssh2": "^1.16.0",
+    "tar": "^7.4.3",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "supertest": "^7.0.0"
+  }
+}

@@ -1,0 +1,25 @@
+# secrets
+.env
+.env.*
+!.env.example
+*.pem
+
+# runtime data
+backend/state/
+backend/keys/
+backend/results/
+state/
+keys/
+
+# build / deps
+node_modules/
+dist/
+*.tar.gz
+
+# editors / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+__pycache__/
+.ipynb_checkpoints/
