@@ -9,13 +9,37 @@ You type (or say) what you want, for example *"Deploy my website"*. A language m
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Saipavanavsp/deploy-by-command/blob/main/colab/Deploy_by_Command_Colab.ipynb)
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Saipavanavsp/deploy-by-command)
 
-- **Notebook in Google Colab:** click *Open in Colab* above, then *Runtime → Run all*.
-- **Live simulated demo:** click *Deploy to Render* (free plan). See [Live demo](#live-demo-render).
+| | Link |
+|---|---|
+| **Source code** | https://github.com/Saipavanavsp/deploy-by-command |
+| **Notebook in Google Colab** | [Open in Colab](https://colab.research.google.com/github/Saipavanavsp/deploy-by-command/blob/main/colab/Deploy_by_Command_Colab.ipynb), then *Runtime → Run all* |
+| **Live simulated demo** | https://deploy-by-command-demo.onrender.com/?token=ACCESS_TOKEN (needs the access token; see [Live demo](#live-demo-render)) |
+
+**You don't need to run anything to evaluate this project.** All results below were recorded on a Google Colab runtime and on the dashboard, and are shown with screenshots in [Results and walkthrough](#results-and-walkthrough).
+
+---
+
+## Results at a glance
+
+| What was checked | Result | Reproduces |
+|---|---|---|
+| Automated tests (7 areas) | **29 / 29 passed** in about 5 s | Table III |
+| Rule classifier on 12 reference commands | **12 / 12 passed** | Table IV |
+| Free-form sentence *"can you put my site on the internet please"* | Rules: **UNKNOWN (0.2)**, nothing runs · Gemini: **FULL_DEPLOY (0.95)** | Table IV / V |
+| Live Gemini, 3 commands (`gemini-flash-lite-latest`) | **3 / 3 understood** by Gemini (0.95, 0.90, 0.95) | Table V |
+| Backend latency on Colab (median / p95, n = 50) | `/health` 2.0 / 3.2 ms · `/command` 1.8 / 2.7 ms · `/logs` 1.9 / 4.7 ms | Table VIII |
+| Rate limit 240 requests/min | **Enforced**: request #241 got HTTP 429 | Table VIII |
+| Simulated end-to-end deployment | Launch → Configure → Deploy **all done**; second run **skips** finished steps | Sec. 4 |
+| Destructive commands (*"delete everything"*, *"terminate my instance"*) | **UNKNOWN, nothing was run** | Safety |
+| Terminate | Refused without typed confirmation; works with `TERMINATE` | Safety |
+| Real AWS launch / deploy | **Not run** (needs a billable AWS account; disabled by default) | — |
 
 ---
 
 ## Contents
 
+- [Results at a glance](#results-at-a-glance)
+- [Results and walkthrough](#results-and-walkthrough)
 - [Architecture](#architecture)
 - [The seven intents](#the-seven-intents)
 - [Safety design](#safety-design)
@@ -116,6 +140,146 @@ The **rule-based fallback** is used when there is no key or Gemini fails. Destru
 - **Secrets:** the Gemini key, Cloudflare token and AWS keys are redacted from every log line and error. The private key path never reaches the browser. The key file is written with mode 600. `.env`, `keys/` and `state/` are git-ignored.
 - **Per-mode state:** `state/state-mock.json` and `state/state-aws.json` are separate. Simulated state can never load in real mode.
 - **API hardening:** helmet, a CORS allowlist (cross-site requests get 403), 240 requests/min (429), a 10 KB JSON body limit, zod validation (commands 1–300 characters).
+
+## Results and walkthrough
+
+All outputs below are real, recorded on **3 November 2026**. Parts 1–3 ran on a **Google Colab runtime** (Intel Xeon 2.20 GHz, Node v22.23.4, Linux) using the notebook [`colab/Deploy_by_Command_Colab.ipynb`](colab/Deploy_by_Command_Colab.ipynb). Part 4 is the dashboard in **simulated mode**, and Part 5 is the hosted demo on Render.
+
+### Part 1 — Setting up the Colab runtime
+
+**Step 1. Configuration.** Secrets come from Colab Secrets and are never printed.
+
+![Colab configuration cell output](docs/screenshots/01-colab-config.png)
+
+**Step 2. Node.js 22** installed from NodeSource.
+
+![Node.js version](docs/screenshots/02-colab-node.png)
+
+**Step 3. Clone the repository and install dependencies** (`npm ci` in `backend/` and `frontend/`).
+
+![Clone and npm ci](docs/screenshots/03-colab-clone-install.png)
+
+### Part 2 — Evaluation (Tables III, IV, V, VIII and Fig. 14)
+
+**Table III: 29 automated tests, all passing.** They call the real HTTP API with the simulated provider; Gemini and Cloudflare are replaced by stubs, so the tests are fast and repeatable.
+
+![29 tests passing](docs/screenshots/04-colab-tests-29-of-29.png)
+
+| Area | Tests | What is verified |
+|---|---|---|
+| Health and routing | 2 / 2 | Mock-mode health; every route works with and without `/api` |
+| Rule classifier | 1 / 1 | The 12 reference commands map to the expected intents |
+| Gemini handling | 7 / 7 | Valid reply used; off-list reply rejected; failures fall back without leaking the key; low confidence → UNKNOWN; 404 shows the cause with the key redacted; 503 retried; 404 not retried |
+| Validation and refusal | 2 / 2 | Empty, too-long and malformed input rejected; unsupported command runs nothing |
+| Workflow and ordering | 6 / 6 | Prerequisites; full workflow; one job at a time (409); finished steps skipped; typed Terminate confirmation; a failing provider is never reported as success |
+| Configuration and safety | 4 / 4 | Real mode refused without the second lock; SSH `0.0.0.0/0` rejected; no key path reaches the browser; separate state per mode |
+| Cloudflare route | 7 / 7 | Needs credentials; correct URL chosen; "verified" only after HTTP 200; unreachable reported; errors and token redacted |
+| **Total** | **29 / 29** | |
+
+**Table IV: the rule-based classifier, 12 / 12.**
+
+![Table IV classifier evaluation](docs/screenshots/05-colab-table4-classifier.png)
+
+The rules deliberately do **not** understand free phrasing. *"can you put my site on the internet please"* → `UNKNOWN` (confidence 0.2), so nothing runs and the reason is shown. Understanding phrasing like this is Gemini's job (Table V).
+
+**Table V: live Gemini.** Every command was understood by Gemini, including the free-form sentence the rules could not handle.
+
+![Table V live Gemini](docs/screenshots/06-colab-table5-gemini.png)
+
+| Command | Intent | Engine | Confidence | Time |
+|---|---|---|---|---|
+| "Deploy my website" | FULL_DEPLOY | gemini | 0.95 | 37.5 s |
+| "Deploy my website" | FULL_DEPLOY | gemini | 0.90 | 69.5 s |
+| "can you put my site on the internet please" | FULL_DEPLOY | gemini | 0.95 | 40.0 s |
+
+Observations:
+- **Confidence varies slightly:** the same command gave 0.95 and then 0.90, even at temperature 0. The intent stayed the same.
+- **Times were unusually long that day.** The API key had just hit Google's free-tier rate limit (earlier runs returned HTTP 429 and 503). In those runs the app correctly fell back to the rules engine and showed the reason, which is the designed safe behaviour. The dashboard limits each Gemini request to 20 s (`GEMINI_TIMEOUT_MS`); this measurement allowed 120 s.
+
+**Building the dashboard** (`vite build`):
+
+![Vite build](docs/screenshots/07-colab-frontend-build.png)
+
+**Table VIII: performance** (simulated mode, loopback, 50 sequential requests per endpoint):
+
+![Table VIII benchmark](docs/screenshots/11-colab-table8-benchmark.png)
+
+| Measurement | Value |
+|---|---|
+| `GET /health` median / p95 | 2.00 ms / 3.16 ms |
+| `POST /command` (rules) median / p95 | 1.77 ms / 2.73 ms |
+| `GET /logs` median / p95 | 1.86 ms / 4.72 ms |
+| Bare Node HTTP server (baseline) median / p95 | 0.66 ms / 2.03 ms |
+| Rate limit (240 / min) | 260 sent: 240 × HTTP 200, 20 × HTTP 429 (first 429 at #241), so it is **enforced** |
+| Automated tests | 29 / 29 passed in 5.28 s |
+| Frontend bundle, raw / gzip | JS 155.98 kB / 50.25 kB · CSS 6.29 kB / 2.06 kB |
+| Real AWS launch / deploy time | not measured (needs a live AWS run) |
+
+**Fig. 14: tests passed by area, and backend response time by endpoint.**
+
+![Fig. 14](docs/screenshots/12-colab-fig14.png)
+
+### Part 3 — Simulated end-to-end deployment (from Python on Colab)
+
+**Starting the backend.** The banner states the mode clearly. In simulated mode nothing touches AWS, SSH or Docker.
+
+![Backend banner](docs/screenshots/08-colab-backend-start.png)
+
+**"Deploy my website"** is interpreted as `FULL_DEPLOY`. The server answers **202 Accepted** and runs launch → configure → deploy in the background. Every provider line is tagged `[SIMULATED]`, and the IP comes from the reserved documentation range `198.51.100.0/24`. In this run Gemini was rate-limited (HTTP 429), so after 3 attempts the rules engine decided, and the warning says so.
+
+![End-to-end simulated deployment](docs/screenshots/09-colab-e2e-full-deploy.png)
+
+**Second run and safety checks:**
+- **Finished steps are skipped:** the second run logged *"skip launch"* and *"skip configure"*, so only deploy ran.
+- **Second launch refused:** with **409 ALREADY_TRACKED**, because only one server is allowed.
+- **Destructive text refused:** *"delete everything"* and *"terminate my instance"* became **UNKNOWN** with `operation=None`, so nothing ran.
+
+![Skip steps and refuse destructive commands](docs/screenshots/10-colab-skip-steps-and-unknown.png)
+
+### Part 4 — The dashboard (Fig. 9/10)
+
+**Command and interpretation.** The yellow banner and the **SIMULATED · MOCK** badge make the mode obvious. The card shows the intent, which engine decided, the confidence, the reason and the plan.
+
+![Dashboard interpretation](docs/screenshots/13-dashboard-interpretation.png)
+
+**Actions and progress.** Launch, Configure and Deploy each go *pending → running → done*.
+
+![Dashboard actions and progress](docs/screenshots/14-dashboard-actions-progress.png)
+
+**Live logs and result.** The logs have timestamps and levels and auto-scroll. The result card shows the server ID, the example IP (marked as not real), Docker *ready*, and the URL with a **healthy** badge.
+
+![Dashboard logs and result](docs/screenshots/15-dashboard-logs-result.png)
+
+**Refusal of a destructive command.** *"delete everything"* → **UNKNOWN** with *"No action. Nothing was run."* and the list of supported actions.
+
+![Dashboard UNKNOWN refusal](docs/screenshots/16-dashboard-unknown-refusal.png)
+
+**Terminate with typed confirmation.** It runs only after typing `TERMINATE` (or the instance ID). The security group, key pair and local key file are deleted (simulated here), and the progress resets.
+
+![Dashboard terminate](docs/screenshots/17-dashboard-terminate.png)
+
+![Dashboard progress reset](docs/screenshots/18-dashboard-progress-reset.png)
+
+### Part 5 — Hosted simulated demo (Render)
+
+The repository includes [`render.yaml`](render.yaml), so Render builds and runs the app from GitHub with **one click**. It stays in simulated mode and is protected by a random access token.
+
+![Render blueprint](docs/screenshots/19-render-blueprint.png)
+
+![Render sync](docs/screenshots/20-render-sync.png)
+
+![Render deployed](docs/screenshots/21-render-deployed.png)
+
+### Issues found during the runs, and how they were fixed
+
+| Problem observed | Cause | Fix |
+|---|---|---|
+| Notebook failed with `WinError 5` on `/content/...` | It was running on the **local Windows** Python kernel instead of a Colab runtime | Cell 1 now stops with a clear message if the kernel is not Linux; re-cloning removes read-only git files |
+| `/command` call timed out in the notebook | Gemini was overloaded (503) and the retries took about 30 s | Notebook API timeout raised to 120 s; `GEMINI_MODEL` can be set in cell 1 |
+| Gemini answers took up to 70 s | API key rate-limited by Google | `GEMINI_TIMEOUT_MS` made configurable (dashboard 20 s, Table V measurement 120 s) |
+| Cloudflare tunnel error 1033 / 530 | Colab blocks QUIC (UDP) and stops tunnel processes | Tunnel runs over HTTP/2 and waits for a registered connection; Render added as the stable live option |
+| Deploy stopped with `EPERM … rename` on Windows | OneDrive briefly locks files while syncing | State save retries, then writes directly; a step is never left "running" after a failure |
+| Access token in the link rejected | A `+` in the token is read as a space in URLs | The server restores `+` in `?token=` |
 
 ## Setup: local
 
@@ -309,7 +473,7 @@ Tests use the real HTTP interface (supertest against the app factory), the mock 
 | Sample app + Dockerfile | Implemented; container build not run in CI |
 | Colab notebook | Run on a Colab runtime: 29/29 tests, Tables IV/V/VIII, Fig. 14, simulated end-to-end run; real-AWS cells disabled by default |
 | Live Gemini (Table V) | Measured on Colab with `gemini-flash-lite-latest`: all 3 commands → FULL_DEPLOY via Gemini (0.95 / 0.90 / 0.95); 37–70 s per request that day (rate-limited key) |
-| Public demo (Render) | `render.yaml` provided; simulated + token-protected; tested locally with the same settings |
+| Public demo (Render) | Deployed from `render.yaml` at https://deploy-by-command-demo.onrender.com (simulated, token-protected; `/health` verified) |
 | Real-AWS timings (launch / deploy duration) | Not measured |
 
 ---
