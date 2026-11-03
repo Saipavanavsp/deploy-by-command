@@ -177,6 +177,8 @@ export function createWorkflow({ cfg, provider, store, logger, publisher }) {
       logger.info(`Operation ${LABEL[op]} finished`);
     } catch (err) {
       const message = redact(err?.message || String(err), secrets());
+      // A step is never left "running" after a failure.
+      for (const s of STEP_NAMES) if (state.steps[s] === 'running') state.steps[s] = 'failed';
       state.lastError = { op, message, cause: redact(causeOf(err) || '', secrets()) || null, at: new Date().toISOString() };
       state.lastOp = { ...state.lastOp, status: 'failed', endedAt: new Date().toISOString() };
       result(op, false, `${LABEL[op]}: failed — ${message}`);
@@ -184,7 +186,11 @@ export function createWorkflow({ cfg, provider, store, logger, publisher }) {
     } finally {
       state.busy = false;
       state.currentOp = null;
-      save();
+      try {
+        save();
+      } catch (err) {
+        logger.error(`Could not save state to disk: ${redact(err.message, secrets())}`);
+      }
     }
   }
 

@@ -5,6 +5,10 @@ import path from 'node:path';
 
 export const STEP_NAMES = ['launch', 'configure', 'deploy'];
 
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
 export function emptyState(mode) {
   return {
     mode,
@@ -52,9 +56,22 @@ export function createStateStore({ dir, mode, logger }) {
       fs.mkdirSync(dir, { recursive: true });
       // eslint-disable-next-line no-unused-vars
       const { busy, currentOp, ...persist } = state;
+      const data = JSON.stringify({ ...persist, mode }, null, 2);
       const tmp = `${file}.tmp`;
-      fs.writeFileSync(tmp, JSON.stringify({ ...persist, mode }, null, 2));
-      fs.renameSync(tmp, file);
+      fs.writeFileSync(tmp, data);
+      // Atomic rename; on Windows (OneDrive sync, antivirus) the target can be
+      // locked for a moment, so retry briefly and then fall back to a direct write.
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        try {
+          fs.renameSync(tmp, file);
+          return;
+        } catch (err) {
+          if (!['EPERM', 'EBUSY', 'EACCES'].includes(err.code)) throw err;
+          sleepSync(25 * attempt);
+        }
+      }
+      fs.writeFileSync(file, data);
+      fs.rmSync(tmp, { force: true });
     },
   };
 }
