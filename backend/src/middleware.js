@@ -38,10 +38,11 @@ function accessTokenGuard(cfg) {
     if (!cfg.colabTunnel) return next();
     // Health stays open for hosting health checks; it reveals only mode/engine.
     if (req.method === 'GET' && (req.path === '/health' || req.path === '/api/health')) return next();
-    const fromQuery = typeof req.query?.token === 'string' ? req.query.token : '';
+    // A "+" in an unencoded ?token= arrives as a space; restore it (tokens never contain spaces).
+    const fromQuery = typeof req.query?.token === 'string' ? req.query.token.replace(/ /g, '+') : '';
     const provided = req.get('x-access-token') || fromQuery || parseCookies(req.headers.cookie).dbc_token || '';
     if (!provided || !safeEqual(provided, cfg.accessToken)) {
-      return res.status(401).json({ error: { code: 'ACCESS_TOKEN_REQUIRED', message: 'This dashboard is protected by an access token. Open the link printed in the notebook.' } });
+      return res.status(401).json({ error: { code: 'ACCESS_TOKEN_REQUIRED', message: 'This dashboard is protected by an access token. Open the full link with ?token=<ACCESS_TOKEN> (from the notebook output, or Render -> Environment).' } });
     }
     if (fromQuery) res.cookie('dbc_token', provided, { httpOnly: true, sameSite: 'strict', secure: req.secure, path: '/' });
     req.tokenOk = true;
